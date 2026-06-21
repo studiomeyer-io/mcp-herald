@@ -9,7 +9,7 @@ description = "Static migration linter for the MCP 2026-07-28 spec. Scans your s
 repository = "https://github.com/studiomeyer-io/mcp-herald"
 homepage = "https://github.com/studiomeyer-io/mcp-herald"
 readme = "README.md"
-keywords = ["mcp", "model-context-protocol", "linter", "migration", "static-analysis"]
+keywords = ["mcp", "model-context", "linter", "migration", "static-analysis"]
 categories = ["command-line-utilities", "development-tools"]
 
 [lib]
