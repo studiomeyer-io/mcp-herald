@@ -130,6 +130,7 @@ verdicts. It is the migration-time companion to:
 - [`mcp-armor`](https://github.com/studiomeyer-io/mcp-armor) — runtime defense (prompt-injection,
   manifest signatures).
 - [`mcp-gauntlet`](https://github.com/studiomeyer-io/mcp-gauntlet) — pre-deploy fuzz + load testing.
+- [`mcp-passport`](https://github.com/studiomeyer-io/mcp-passport) — registry publish-readiness validator (the publish gate).
 
 ## License
 
