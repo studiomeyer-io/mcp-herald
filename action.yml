@@ -1,0 +1,36 @@
+name: "mcp-herald lint"
+description: "Flag MCP 2026-07-28 spec migration issues in your server source."
+branding:
+  icon: "alert-triangle"
+  color: "orange"
+
+inputs:
+  path:
+    description: "File or directory to scan."
+    required: false
+    default: "."
+  fail-on:
+    description: "Severity that fails the job: error | warning | info | never."
+    required: false
+    default: "error"
+  format:
+    description: "Output format: human | sarif | json."
+    required: false
+    default: "human"
+  version:
+    description: "Version of mcp-herald to install from crates.io."
+    required: false
+    default: "0.1.0"
+
+runs:
+  using: composite
+  steps:
+    - name: Install mcp-herald
+      shell: bash
+      run: cargo install mcp-herald --version "${{ inputs.version }}" --locked
+    - name: Lint for 2026-07-28 migration issues
+      shell: bash
+      run: |
+        mcp-herald lint "${{ inputs.path }}" \
+          --fail-on "${{ inputs.fail-on }}" \
+          --format "${{ inputs.format }}"
