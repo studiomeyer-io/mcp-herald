@@ -91,8 +91,8 @@ fn level_labels_are_stable() {
 fn all_rules_compile_and_count_matches_specs() {
     let compiled = compile();
     assert_eq!(compiled.len(), RULES.len());
-    // There are exactly seven curated rules.
-    assert_eq!(RULES.len(), 7, "expected 7 rules");
+    // There are exactly eight curated rules (seven at 0.1.0 plus the registration axis).
+    assert_eq!(RULES.len(), 8, "expected 8 rules");
 }
 
 #[test]
@@ -105,7 +105,7 @@ fn rule_ids_are_unique() {
 }
 
 #[test]
-fn the_seven_expected_ids_exist() {
+fn the_eight_expected_ids_exist() {
     let ids: std::collections::BTreeSet<&str> = RULES.iter().map(|r| r.id).collect();
     for expected in [
         "spec.error_code",
@@ -115,6 +115,7 @@ fn the_seven_expected_ids_exist() {
         "deprecated.logging",
         "protocol.old_version",
         "auth.protected_resource_metadata",
+        "auth.dcr_without_cimd",
     ] {
         assert!(ids.contains(expected), "missing rule id {expected}");
     }
@@ -144,10 +145,12 @@ fn rule_levels_match_specification() {
     assert_eq!(level_of("deprecated.logging"), Level::Warning);
     assert_eq!(level_of("protocol.old_version"), Level::Info);
     assert_eq!(level_of("auth.protected_resource_metadata"), Level::Info);
+    // DCR stays at MAY in the 2026-07-28 spec — a warning, never an error.
+    assert_eq!(level_of("auth.dcr_without_cimd"), Level::Warning);
 }
 
 #[test]
-fn exactly_one_error_rule_and_one_file_level_rule() {
+fn exactly_one_error_rule_and_two_file_level_rules() {
     let errors = RULES.iter().filter(|r| r.level == Level::Error).count();
     assert_eq!(errors, 1, "only spec.error_code is Error-level");
 
@@ -156,5 +159,8 @@ fn exactly_one_error_rule_and_one_file_level_rule() {
         .iter()
         .filter(|r| matches!(r.kind, Kind::FilePresentAbsent { .. }))
         .count();
-    assert_eq!(file_level, 1, "only auth rule is file-level present/absent");
+    assert_eq!(
+        file_level, 2,
+        "the two auth rules are file-level present/absent"
+    );
 }

@@ -185,12 +185,41 @@ fn auth_fires_exactly_once_with_multiple_headers() {
 }
 
 // ===========================================================================
-// protocol.old_version — the current date must not trip the legacy-date rule.
+// auth.dcr_without_cimd — prose and plain sign-up routes must stay silent.
+// (Full coverage in rule_dcr_cimd.rs; these are the headline negatives.)
+// ===========================================================================
+
+#[test]
+fn dcr_does_not_flag_prose_or_plain_register_route() {
+    assert!(!fired(
+        &scan_ts(" *   POST /register → Dynamic Client Registration (RFC 7591)"),
+        "auth.dcr_without_cimd"
+    ));
+    assert!(!fired(
+        &scan_ts("app.post('/register', signupHandler);"),
+        "auth.dcr_without_cimd"
+    ));
+}
+
+#[test]
+fn dcr_does_not_flag_when_cimd_is_advertised() {
+    // The migration target must never be flagged.
+    assert!(!fired(
+        &scan_ts(
+            "registration_endpoint: '/register',\nclient_id_metadata_document_supported: true,"
+        ),
+        "auth.dcr_without_cimd"
+    ));
+}
+
+// ===========================================================================
+// protocol.old_version — in-use dates must not trip the legacy-date rule.
 // ===========================================================================
 
 #[test]
 fn old_version_does_not_flag_current_date() {
-    // 2025-11-25 is current; the 2026-07-28 final date is also not in the legacy set.
+    // 2026-07-28 is the current revision. 2025-11-25 is the previous one and is still
+    // widely negotiated, so it is deliberately kept out of the legacy set for now.
     assert!(!fired(
         &scan_ts("const PV = '2025-11-25';"),
         "protocol.old_version"
@@ -235,6 +264,12 @@ const PROTOCOL_VERSION = "2025-11-25";
 // OAuth resource server with discovery endpoint (RFC 9728).
 app.get("/.well-known/oauth-protected-resource", (_req, res) => res.json(meta));
 res.setHeader("WWW-Authenticate", 'Bearer resource_metadata="..."');
+
+// CIMD primary (SEP-991), DCR kept only as a documented fallback.
+const asMetadata = {
+  client_id_metadata_document_supported: true,
+  registration_endpoint: `${BASE_URL}/register`,
+};
 "#;
     let f = scan("modern-server.ts", src);
     assert!(f.is_empty(), "compliant server should be clean, got: {f:?}");

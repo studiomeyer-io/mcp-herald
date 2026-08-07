@@ -1,11 +1,11 @@
 [package]
 name = "mcp-herald"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.89"
 license = "MIT"
 authors = ["StudioMeyer <hello@studiomeyer.io>"]
-description = "Static migration linter for the MCP 2026-07-28 spec. Scans your server source for breaking-change signatures — the -32002 error code, stateful sessions, deprecated roots/sampling/logging, missing OAuth resource metadata — and tells you what to change before the deadline."
+description = "Static migration linter for the MCP 2026-07-28 spec. Scans your server source for breaking-change signatures — the -32002 error code, stateful sessions, deprecated roots/sampling/logging, deprecated Dynamic Client Registration, missing OAuth resource metadata — and tells you, file and line, exactly what to change."
 repository = "https://github.com/studiomeyer-io/mcp-herald"
 homepage = "https://github.com/studiomeyer-io/mcp-herald"
 readme = "README.md"

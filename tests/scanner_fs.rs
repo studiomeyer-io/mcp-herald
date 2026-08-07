@@ -173,3 +173,44 @@ fn single_file_path_is_scannable() {
     let report = scan_path(&file, &rules);
     assert!(report.findings.iter().any(|f| f.rule == "spec.error_code"));
 }
+
+#[test]
+fn dcr_rule_fires_once_per_tree_on_the_implementing_file_only() {
+    // Mirrors the shape of two real MCP servers: the module that actually publishes
+    // authorization-server metadata carries `registration_endpoint`, while the HTTP entry
+    // point only *describes* the route in a header comment. Exactly one finding, and it
+    // must land on the implementing file — this is the contract that keeps the rule from
+    // spraying findings across a repo.
+    let dir = TempDir::new("dcr");
+    dir.write(
+        "auth/oauth.ts",
+        " *   POST /register → Dynamic Client Registration (RFC 7591)\n\
+         export const metadata = {\n\
+         \x20 registration_endpoint: `${BASE_URL}/register`,\n\
+         };\n",
+    );
+    dir.write(
+        "http-server.ts",
+        " *   POST /register       — Dynamic Client Registration (RFC 7591)\n\
+         app.post('/register', registerHandler);\n",
+    );
+    // A third file that already migrated must stay silent.
+    dir.write(
+        "auth/cimd.ts",
+        "export const metadata = {\n\
+         \x20 registration_endpoint: `${BASE_URL}/register`,\n\
+         \x20 client_id_metadata_document_supported: true,\n\
+         };\n",
+    );
+
+    let rules = compile();
+    let report = scan_path(dir.path(), &rules);
+    let hits: Vec<&str> = report
+        .findings
+        .iter()
+        .filter(|f| f.rule == "auth.dcr_without_cimd")
+        .map(|f| f.file.as_str())
+        .collect();
+    assert_eq!(hits.len(), 1, "expected one DCR finding, got {hits:?}");
+    assert_eq!(hits[0].replace('\\', "/"), "auth/oauth.ts");
+}

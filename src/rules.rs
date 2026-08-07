@@ -9,7 +9,8 @@
 //! resource-not-found moved from the MCP-custom `-32002` to the JSON-RPC standard `-32602`
 //! (SEP-2164); the transport became stateless (SEP-2575); roots / sampling / logging were
 //! deprecated (SEP-2577); OAuth servers must publish Protected Resource Metadata (RFC 9728)
-//! and honor Resource Indicators (RFC 8707).
+//! and honor Resource Indicators (RFC 8707); and on the registration axis, Dynamic Client
+//! Registration was deprecated in favour of Client ID Metadata Documents (SEP-991).
 
 use regex::Regex;
 use serde::Serialize;
@@ -20,7 +21,7 @@ use serde::Serialize;
 pub enum Level {
     /// Worth knowing; not a hard break.
     Info,
-    /// Likely to need a change before 2026-07-28.
+    /// Likely to need a change for the 2026-07-28 spec.
     Warning,
     /// Will break against the new spec if left as-is.
     Error,
@@ -141,8 +142,9 @@ pub static RULES: &[RuleSpec] = &[
         sep: "—",
         level: Level::Info,
         kind: Kind::Line(r"2024-11-05|2025-03-26|2025-06-18"),
-        message: "References an older MCP protocol-version date. 2025-11-25 is current and \
-                  the 2026-07-28 final is approaching.",
+        message: "References a superseded MCP protocol-version date. The 2026-07-28 revision \
+                  is final and current; 2025-11-25 is still widely negotiated and is therefore \
+                  not flagged here.",
         fix: "Advertise the latest protocol version you support and negotiate down; avoid \
               hardcoding an old date in the handshake.",
         url: "https://modelcontextprotocol.io/specification",
@@ -165,6 +167,56 @@ pub static RULES: &[RuleSpec] = &[
         fix: "Serve oauth-protected-resource metadata pointing at your auth server, and \
               include the resource indicator in token requests to prevent audience confusion.",
         url: "https://workos.com/blog/mcp-2026-spec-agent-authentication",
+    },
+    RuleSpec {
+        id: "auth.dcr_without_cimd",
+        // No SEP exists for the *deprecation* itself. SEP-991 introduced CIMD and moved DCR
+        // from SHOULD to MAY; the 2026-07-28 spec page carries the deprecation text. Both are
+        // named here rather than inventing a "SEP-DCR".
+        sep: "SEP-991 / spec 2026-07-28",
+        level: Level::Warning,
+        // `registration_endpoint` — the RFC 8414 authorization-server metadata field — is the
+        // ONLY present-signal, on purpose. Prose variants ("RFC 7591", "Dynamic Client
+        // Registration") were measured against two real MCP servers and fired on file *header
+        // comments* in modules that implement no registration at all. That is the same
+        // false-positive class already rejected above for `auth.protected_resource_metadata`,
+        // where broader field names were dropped in favour of one strong signal.
+        //
+        // Warning, not Error: the 2026-07-28 spec keeps DCR at MAY — "remains available for
+        // backwards compatibility" — so nothing breaks on the cutover date, unlike
+        // `spec.error_code` where a wire format changes.
+        //
+        // No removal window is stated. Unlike the SEP-2577 rules above, which cite a published
+        // 12-month window, no dated removal exists for DCR: the release blog says only "will be
+        // removed in a future version". Do not add a deadline here without a normative source.
+        //
+        // redirect_uri allowlists are deliberately NOT matched. A local allowlist is a security
+        // control (it blocks the 1-click account-takeover class), and flagging it would warn
+        // about a correct defense. `application_type` / `iss` / `id_token` / `refresh_token` are
+        // likewise out of scope — those OAuth-hardening signals belong to mcp-stateless-migrator
+        // (`r07-oauth-hardening`), and duplicating them would double-report for anyone running
+        // both tools.
+        //
+        // Self-suppression, load-bearing: this very file satisfies the present side, because
+        // `registration_endpoint` appears just below as a literal. It stays unflagged only
+        // because `client_id_metadata_document_supported` sits in the same file (in the absent
+        // regex and again in `fix`) and triggers the absent side. A later refactor that moves
+        // `message`/`fix` into their own module while leaving the regex literals here would make
+        // `rules.rs` flag itself. Keep both literals in one file, or add an explicit exclusion.
+        kind: Kind::FilePresentAbsent {
+            present: r"(?i)registration_endpoint",
+            absent: r"(?i)client_id_metadata_document_supported|client.?id.?metadata|\bcimd\b",
+        },
+        message: "The 2026-07-28 spec deprecates Dynamic Client Registration (RFC 7591) in \
+                  favour of OAuth Client ID Metadata Documents (CIMD). DCR remains available \
+                  for backwards compatibility and is not removed in this revision, but new \
+                  implementations should use CIMD. This file advertises a registration \
+                  endpoint and shows no CIMD support.",
+        fix: "Advertise \"client_id_metadata_document_supported\": true in your authorization \
+              server metadata and resolve URL-formatted client_ids by fetching the client's \
+              metadata document. Keep the registration endpoint as a fallback for peers that \
+              do not speak CIMD yet.",
+        url: "https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration",
     },
 ];
 
@@ -237,5 +289,31 @@ mod tests {
             assert!(r.url.starts_with("https://"), "rule {} lacks a url", r.id);
             assert!(!r.fix.is_empty(), "rule {} lacks a fix", r.id);
         }
+    }
+
+    #[test]
+    fn dcr_rule_claims_no_removal_deadline() {
+        // The SEP-2577 rules cite a published 12-month window; DCR has none. A future edit
+        // that quietly adds a deadline to the DCR rule must fail here.
+        let r = RULES
+            .iter()
+            .find(|r| r.id == "auth.dcr_without_cimd")
+            .expect("dcr rule present");
+        let text = format!("{} {}", r.message, r.fix).to_lowercase();
+        for claim in ["12-month", "12 month", "removal window", "deadline"] {
+            assert!(
+                !text.contains(claim),
+                "dcr rule must not claim a removal window ({claim:?} found)"
+            );
+        }
+    }
+
+    #[test]
+    fn dcr_rule_does_not_invent_a_sep_number() {
+        let r = RULES
+            .iter()
+            .find(|r| r.id == "auth.dcr_without_cimd")
+            .expect("dcr rule present");
+        assert_eq!(r.sep, "SEP-991 / spec 2026-07-28");
     }
 }

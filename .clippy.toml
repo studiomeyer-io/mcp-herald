@@ -1,2 +1,7 @@
 avoid-breaking-exported-api = false
-msrv = "1.86"
+# Muss zu `rust-version` in Cargo.toml und zum MSRV-Job in ci.yml passen.
+# Stand 07.08.2026 sind alle drei 1.89. Dependabot hob Cargo.toml und ci.yml auf
+# 1.89, liess diese Datei aber auf 1.86 stehen — clippy meldete daraufhin bei
+# jedem Lauf "the MSRV in `clippy.toml` and `Cargo.toml` differ" und benutzte
+# still die niedrigere Zahl. Drei Orte, eine Wahrheit: alle drei zusammen aendern.
+msrv = "1.89"

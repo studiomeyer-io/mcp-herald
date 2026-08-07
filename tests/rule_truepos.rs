@@ -1,5 +1,8 @@
-//! TRUE-POSITIVE coverage: each of the 7 rules must fire on a representative
-//! breaking-change signature. Paired with `rule_trueneg.rs` (compliant code must NOT fire).
+//! TRUE-POSITIVE coverage: each of the 8 rules must fire on a representative
+//! breaking-change signature. Paired with `rule_falsepos.rs` (compliant code must NOT fire).
+//!
+//! The registration-axis rule (`auth.dcr_without_cimd`) has its own dedicated suite in
+//! `rule_dcr_cimd.rs`; only its roll-up appears here.
 
 mod common;
 use common::{fired, scan_ts};
@@ -196,11 +199,29 @@ fn auth_present_is_case_insensitive() {
 }
 
 // ---------------------------------------------------------------------------
-// All seven rules can fire at least once (smoke roll-up).
+// auth.dcr_without_cimd (Warning, file-level present/absent) — SEP-991
+// Full coverage lives in rule_dcr_cimd.rs.
 // ---------------------------------------------------------------------------
 
 #[test]
-fn all_seven_rules_are_reachable() {
+fn dcr_fires_on_registration_endpoint_without_cimd() {
+    let f = scan_ts("registration_endpoint: `${BASE_URL}/register`,");
+    assert!(fired(&f, "auth.dcr_without_cimd"));
+    assert_eq!(
+        f.iter()
+            .find(|f| f.rule == "auth.dcr_without_cimd")
+            .unwrap()
+            .level,
+        Level::Warning
+    );
+}
+
+// ---------------------------------------------------------------------------
+// All eight rules can fire at least once (smoke roll-up).
+// ---------------------------------------------------------------------------
+
+#[test]
+fn all_eight_rules_are_reachable() {
     let combined = concat!(
         "throw new McpError(-32002);\n",             // spec.error_code
         "headers['Mcp-Session-Id'];\n",              // transport.stateful_session
@@ -208,7 +229,8 @@ fn all_seven_rules_are_reachable() {
         "'roots/list';\n",                           // deprecated.roots
         "'logging/setLevel';\n",                     // deprecated.logging
         "version='2024-11-05';\n",                   // protocol.old_version
-        "setHeader('WWW-Authenticate','Bearer');\n"  // auth (file-level, no metadata)
+        "setHeader('WWW-Authenticate','Bearer');\n", // auth (file-level, no metadata)
+        "registration_endpoint: '/register',\n"      // dcr (file-level, no CIMD)
     );
     let f = scan_ts(combined);
     for rule in [
@@ -219,6 +241,7 @@ fn all_seven_rules_are_reachable() {
         "deprecated.logging",
         "protocol.old_version",
         "auth.protected_resource_metadata",
+        "auth.dcr_without_cimd",
     ] {
         assert!(
             fired(&f, rule),

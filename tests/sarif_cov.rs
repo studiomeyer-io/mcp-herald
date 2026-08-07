@@ -78,6 +78,27 @@ fn auth_info_rule_maps_to_note() {
 }
 
 #[test]
+fn dcr_file_level_finding_carries_real_location() {
+    // The file-level DCR rule must still land on a concrete file:line in code scanning.
+    // (The CIMD counter-signal is covered in rule_dcr_cimd.rs; naming it here also keeps
+    // this file clean when herald is run over its own tree.)
+    let s = sarif_for(
+        "auth/oauth.ts",
+        "// pad\nregistration_endpoint: '/register',",
+    );
+    let result = s["runs"][0]["results"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["ruleId"] == "auth.dcr_without_cimd")
+        .expect("a dcr result");
+    assert_eq!(result["level"], "warning");
+    let loc = &result["locations"][0]["physicalLocation"];
+    assert_eq!(loc["artifactLocation"]["uri"], "auth/oauth.ts");
+    assert_eq!(loc["region"]["startLine"], 2);
+}
+
+#[test]
 fn start_line_is_correct_and_at_least_one() {
     let rules = compile();
     let mut findings = Vec::new();
@@ -135,6 +156,7 @@ fn only_fired_rules_become_descriptors() {
     // Rules that did NOT fire are absent.
     assert!(!ids.contains(&"protocol.old_version"));
     assert!(!ids.contains(&"deprecated.roots"));
+    assert!(!ids.contains(&"auth.dcr_without_cimd"));
 }
 
 #[test]

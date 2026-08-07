@@ -11,11 +11,11 @@
 
 **A static migration linter for the [Model Context Protocol](https://modelcontextprotocol.io) 2026-07-28 spec.**
 
-The 2026-07-28 spec is the biggest change since MCP launched: the transport goes **stateless**,
-the resource-not-found error code moves from `-32002` to `-32602`, **roots / sampling / logging**
-are deprecated, and OAuth servers now **must** publish Protected Resource Metadata. If you run a
-server, you have until the deadline to react — and most of what breaks is invisible until a client
-fails in production.
+The 2026-07-28 spec is final, and it is the biggest change since MCP launched: the transport is
+**stateless**, the resource-not-found error code moved from `-32002` to `-32602`, **roots /
+sampling / logging** are deprecated, **Dynamic Client Registration** is deprecated in favour of
+Client ID Metadata Documents, and OAuth servers now **must** publish Protected Resource Metadata.
+Most of what breaks is invisible until a client fails in production.
 
 `mcp-herald` is one static binary that scans your server's **source** and tells you, file and line,
 what the new spec breaks and how to fix it — every finding linked to the SEP/RFC that defines it.
@@ -80,13 +80,41 @@ Exit code is `1` when a finding at or above `--fail-on` (default `error`) is pre
 | `deprecated.sampling` | SEP-2577 | warning | `sampling/createMessage` usage |
 | `deprecated.roots` | SEP-2577 | warning | `roots/list` usage |
 | `deprecated.logging` | SEP-2577 | warning | logging-capability usage (`logging/setLevel`, `notifications/message`) |
+| `auth.dcr_without_cimd` | SEP-991 / spec 2026-07-28 | warning | a `registration_endpoint` (Dynamic Client Registration) with no CIMD support |
 | `protocol.old_version` | — | info | references to superseded protocol-version dates |
 | `auth.protected_resource_metadata` | RFC 9728 / 8707 | info | OAuth without Protected Resource Metadata |
 
 Each finding links its source — `mcp-herald` sends you to the right doc, it isn't the authority.
 Matching is conservative (specific protocol/SDK signatures, not generic words), and the compliant
-idioms — `sessionIdGenerator: undefined`, an `/.well-known/oauth-protected-resource` endpoint — are
-deliberately *not* flagged, so the tool never warns about the very fix it recommends.
+idioms — `sessionIdGenerator: undefined`, an `/.well-known/oauth-protected-resource` endpoint,
+`client_id_metadata_document_supported: true` — are deliberately *not* flagged, so the tool never
+warns about the very fix it recommends. The DCR rule matches only the `registration_endpoint`
+metadata field, never prose like "RFC 7591" in a comment, and never a plain `/register` sign-up
+route.
+
+### On the DCR rule
+
+The [2026-07-28 spec](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/client-registration)
+deprecates Dynamic Client Registration in favour of OAuth Client ID Metadata Documents (SEP-991).
+It is a `warning`, not an `error`: DCR *remains available for backwards compatibility* and nothing
+breaks on the cutover date. No removal deadline is published — the release notes say only "a future
+version" — so the rule deliberately states none.
+
+Two limitations are worth knowing.
+
+**Static metadata assets are not read.** `mcp-herald` scans **source files** only. If your
+authorization server publishes `/.well-known/oauth-authorization-server` as a static `.json` asset
+rather than building it in code, the `registration_endpoint` lives in a file this tool does not
+read, and the rule stays silent. Check such a document by hand.
+
+**The two sides of the rule are held to different standards, on purpose.** The `present` side
+ignores prose: a comment mentioning "RFC 7591" does not prove an implementation, so it does not
+fire the rule. The `absent` side is more forgiving: any mention of CIMD clears the finding,
+including a comment. A file that publishes a `registration_endpoint` next to
+`// TODO: migrate to CIMD` therefore reports nothing. That asymmetry is deliberate, so the tool
+stays quiet for a team that already knows, but it has a consequence: silence is not proof that a
+migration happened. If you need the check to be strict about implementations rather than
+intentions, grep your tree for `client_id_metadata_document_supported` yourself.
 
 ---
 
@@ -104,7 +132,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - uses: studiomeyer-io/mcp-herald@v0.1.0
+      - uses: studiomeyer-io/mcp-herald@v0.2.0
         with:
           path: ./src
           fail-on: error
@@ -123,7 +151,14 @@ mcp-herald lint ./src --format sarif > herald.sarif
 
 `mcp-herald` is a heuristic **static** analyzer: it reads source as text, never executes or
 imports it, and writes nothing back. Findings are prompts to verify against the linked spec, not
-verdicts. It is the migration-time companion to:
+verdicts.
+
+A consequence of being a text matcher: running `mcp-herald lint` over **its own** `src/` reports
+findings, because the ruleset holds its search patterns as plain string literals. That is expected
+and has been true since v0.1.0; the crate's CI runs `fmt`, `clippy`, `test` and `build`, not a
+self-lint.
+
+It is the migration-time companion to:
 
 - [`mcp-covenant`](https://github.com/studiomeyer-io/mcp-covenant) — does *your own* interface stay
   backward-compatible over time (semver for MCP)?

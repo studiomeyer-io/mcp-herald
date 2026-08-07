@@ -172,6 +172,25 @@ mod tests {
     }
 
     #[test]
+    fn dcr_without_cimd_is_flagged_once() {
+        let f = scan("registration_endpoint: `${BASE_URL}/register`,\n// token_endpoint config");
+        let hits: Vec<_> = f
+            .iter()
+            .filter(|f| f.rule == "auth.dcr_without_cimd")
+            .collect();
+        assert_eq!(hits.len(), 1, "file-level rule should fire once");
+    }
+
+    #[test]
+    fn dcr_with_cimd_is_not_flagged() {
+        // The migration target — CIMD advertised, DCR kept as a fallback — must stay silent.
+        let f = scan(
+            "registration_endpoint: `${BASE_URL}/register`,\nclient_id_metadata_document_supported: true,",
+        );
+        assert!(!f.iter().any(|f| f.rule == "auth.dcr_without_cimd"));
+    }
+
+    #[test]
     fn clean_modern_server_has_no_findings() {
         // The compliant stateless idiom (`sessionIdGenerator: undefined`, -32602) must not
         // trip any rule — otherwise the tool flags the very fix it recommends.
